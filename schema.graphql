@@ -1,0 +1,151 @@
+# Core entities
+
+type Wallet @entity {
+  id: ID!                                           # User wallet address
+  balance: BigInt!                                  # Current token balance
+  shares: BigInt!                                   # Current shares balance
+  estimateDeposit: BigInt!                          # Estimated deposit value
+  lastUpdateTimestamp: BigInt!                      # Last time balance was updated
+  lastDepositUpdateTimestamp: BigInt!               # Last time deposit estimate was updated
+  coinTimeAccumulator: BigInt!                      # Accumulated coin-time value
+  transactionCount: BigInt!                         # Total number of transactions
+  
+  # Relationships
+  sentTransfers: [Transfer!]! @derivedFrom(field: "from")
+  receivedTransfers: [Transfer!]! @derivedFrom(field: "to")
+  deposits: [Deposit!]! @derivedFrom(field: "user")
+  withdrawals: [Withdrawal!]! @derivedFrom(field: "user")
+  redeemRequests: [RedeemRequest!]! @derivedFrom(field: "user")
+  approvals: [Approval!]! @derivedFrom(field: "owner")
+  states: [UserState!]! @derivedFrom(field: "user")
+}
+
+type ProtocolMetrics @entity {
+  id: ID!                                           # Singleton entity (always "1")
+  totalSupply: BigInt!                              # Total token supply
+  totalShares: BigInt!                              # Total shares issued
+  holderCount: BigInt!                              # Number of token holders
+  transactionCount: BigInt!                         # Total number of transactions
+  depositCount: BigInt!                             # Total number of deposits
+  withdrawalCount: BigInt!                          # Total number of withdrawals
+  redeemRequestCount: BigInt!                       # Total number of redeem requests
+  
+  # NAV tracking
+  currentNAV: BigInt!                               # Current NAV value
+  navEquivalentAsset: Bytes!                        # Address of equivalent asset
+  shareToAssetPrice: BigInt!                        # Current share price in asset terms
+  lastUpdateTimestamp: BigInt!                      # Last time metrics were updated
+  
+  # Relationships
+  assetBalances: [AssetBalance!]! @derivedFrom(field: "protocol")
+  navUpdates: [NAVUpdate!]! @derivedFrom(field: "protocol")
+}
+
+# Transaction entities
+
+type Transfer @entity {
+  id: Bytes!                                        # Transaction hash + log index
+  from: Wallet!                                     # Sender wallet
+  to: Wallet!                                       # Receiver wallet
+  amount: BigInt!                                   # Amount transferred
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+  sharePrice: BigInt!                               # Share price at time of transfer
+}
+
+type Approval @entity {
+  id: Bytes!                                        # Transaction hash + log index
+  owner: Wallet!                                    # Token owner
+  spender: Bytes!                                   # Approved spender address
+  amount: BigInt!                                   # Approved amount
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Deposit @entity {
+  id: Bytes!                                        # Transaction hash + log index
+  user: Wallet!                                     # User who deposited
+  tokenAmount: BigInt!                              # Amount of tokens received
+  sharesReceived: BigInt!                           # Amount of shares received
+  asset: Bytes!                                     # Address of asset deposited
+  assetAmount: BigInt!                              # Amount of asset deposited
+  sharePrice: BigInt!                               # Share price at time of deposit
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Withdrawal @entity {
+  id: Bytes!                                        # Transaction hash + log index
+  user: Wallet!                                     # User who withdrew
+  tokenAmount: BigInt!                              # Amount of tokens redeemed
+  sharesBurned: BigInt!                             # Amount of shares burned
+  asset: Bytes!                                     # Address of asset withdrawn
+  assetAmount: BigInt!                              # Amount of asset withdrawn
+  sharePrice: BigInt!                               # Share price at time of withdrawal
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+# Redeem request tracking
+
+type RedeemRequest @entity {
+  id: Bytes!                                        # Transaction hash + log index
+  user: Wallet!                                     # User who requested redemption
+  shares: BigInt!                                   # Amount of shares to redeem
+  assets: BigInt!                                   # Expected asset amount
+  fulfilled: Boolean!                               # Whether request has been fulfilled
+  sharePrice: BigInt!                               # Share price at time of request
+  
+  # Fulfillment data (null until fulfilled)
+  fulfillmentSharePrice: BigInt                     # Share price at time of fulfillment
+  fulfillmentTimestamp: BigInt                      # When request was fulfilled
+  fulfillmentBlockNumber: BigInt
+  fulfillmentTransactionHash: Bytes
+  
+  # Request data
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# Asset tracking
+
+type AssetBalance @entity {
+  id: ID!                                           # Asset address
+  protocol: ProtocolMetrics!                        # Reference to protocol metrics
+  assetAddress: Bytes!                              # Address of the asset
+  balance: BigInt!                                  # Current balance of asset
+  lastUpdateTimestamp: BigInt!                      # Last time balance was updated
+}
+
+# NAV tracking
+
+type NAVUpdate @entity {
+  id: Bytes!                                        # Transaction hash + log index
+  protocol: ProtocolMetrics!                        # Reference to protocol metrics
+  navValue: BigInt!                                 # Updated NAV value
+  navEquivalentAsset: Bytes!                        # Address of equivalent asset
+  shareToAssetPrice: BigInt!                        # Updated share price
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+# User state tracking
+
+type UserState @entity {
+  id: Bytes!                                        # User address + timestamp
+  user: Wallet!                                     # Reference to the user wallet
+  balance: BigInt!                                  # Balance at snapshot time
+  shares: BigInt!                                   # Shares at snapshot time
+  estimateDeposit: BigInt!                          # Estimated deposit at snapshot time
+  coinTimeAccumulator: BigInt!                      # Coin-time accumulator at snapshot time
+  timestamp: BigInt!                                # Timestamp of the snapshot
+  blockNumber: BigInt!                              # Block number of the snapshot
+  transactionHash: Bytes!                           # Transaction hash that triggered the snapshot
+}
+
