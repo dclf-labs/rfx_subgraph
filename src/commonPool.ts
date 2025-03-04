@@ -140,7 +140,7 @@ export function handleTransfer(event: TransferEvent): void {
   let fromWallet = getOrCreateWallet(fromAddress);
   let toWallet = getOrCreateWallet(toAddress);
   let metrics = getOrCreateProtocolMetrics();
-  
+  let depositToTransfer = BigInt.fromI32(0);
   // Update balances, shares, and deposit estimates
   if (fromAddress != "0x0000000000000000000000000000000000000000") {
     // Calculate the ratio of tokens being transferred
@@ -158,7 +158,7 @@ export function handleTransfer(event: TransferEvent): void {
       fromWallet.shares = fromWallet.balance; // Ensure shares = balance
       
       // Transfer proportional amount of estimated deposit
-      let depositToTransfer = fromWallet.estimateDeposit.times(transferRatio).div(BigInt.fromI32(10).pow(18));
+      depositToTransfer = fromWallet.estimateDeposit.times(transferRatio).div(BigInt.fromI32(10).pow(18));
       fromWallet.estimateDeposit = fromWallet.estimateDeposit.minus(depositToTransfer);
     } else {
       fromWallet.balance = BigInt.fromI32(0);
@@ -186,22 +186,16 @@ export function handleTransfer(event: TransferEvent): void {
     let isNewHolder = toWallet.balance.equals(BigInt.fromI32(0)) && !toAddress.includes("0x0000000000000000000000000000000000000");
     
     // Calculate deposit estimate to transfer
-    let depositToAdd = BigInt.fromI32(0);
     if (fromAddress != "0x0000000000000000000000000000000000000000") {
       // If this is a transfer (not a mint), transfer the deposit estimate proportionally
       let fromWallet = getOrCreateWallet(fromAddress);
-      if (!fromWallet.balance.isZero()) {
-        let transferRatio = event.params.amount.times(BigInt.fromI32(10).pow(18)).div(fromWallet.balance.plus(event.params.amount));
-        depositToAdd = fromWallet.estimateDeposit.times(transferRatio).div(BigInt.fromI32(10).pow(18));
-      }
-    } else {
-      // If this is a mint, the deposit estimate equals the amount (1:1)
-      depositToAdd = event.params.amount;
-    }
+      
+      toWallet.estimateDeposit = toWallet.estimateDeposit.plus(depositToTransfer);
+    } 
     
     toWallet.balance = toWallet.balance.plus(event.params.amount);
     toWallet.shares = toWallet.balance; // Ensure shares = balance
-    toWallet.estimateDeposit = toWallet.estimateDeposit.plus(depositToAdd);
+
     toWallet.transactionCount = toWallet.transactionCount.plus(BigInt.fromI32(1));
     toWallet.save();
     
