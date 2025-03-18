@@ -19,6 +19,8 @@ dataSources:
         - Wallet
         - Transfer
         - UserState
+        - TransactionUSNAmount
+        - ProcessedTransaction
       abis:
         - name: rfxpool
           file: ./abis/rfxpool.json
@@ -42,6 +44,8 @@ dataSources:
         - Wallet
         - Transfer
         - UserState
+        - TransactionUSNAmount
+        - ProcessedTransaction
       abis:
         - name: usn
           file: ./abis/usn.json

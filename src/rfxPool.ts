@@ -5,7 +5,9 @@ import {
 import { 
   Transfer, 
   Wallet, 
-  UserState
+  UserState,
+  TransactionUSNAmount,
+  ProcessedTransaction
 } from "../generated/schema";
 import { getOrCreateWallet, createUserStateSnapshot, updateWalletBalanceAndAccumulator } from "./helpers";
 
@@ -28,30 +30,60 @@ export function handleRfxTransfer(event: TransferEvent): void {
   let toWallet = getOrCreateWallet(toAddress);
   
   let depositToTransfer = BigInt.fromI32(0);
+  let txHash = event.transaction.hash.toHexString();
   
   // Handle minting of RP tokens (from zero address)
   if (fromAddress == ZERO_ADDRESS && toAddress != ZERO_ADDRESS) {
     log.info("RP tokens minted to user: address={}, amount={}, tx={}", [
       toAddress,
       transferAmount.toString(),
-      event.transaction.hash.toHexString()
+      txHash
     ]);
     
-    // For now, we'll use the RP amount as an estimate
-    // In a future update, we'll implement the TransactionUSNAmount lookup
-    let usnAmount = transferAmount;
+    // Check if we've already processed this transaction to prevent double counting
+    let processedTxKey = txHash + "-deposit";
+    let processedTx = ProcessedTransaction.load(processedTxKey);
     
-    // Update the user's deposit estimate with the USN amount
-    updateWalletBalanceAndAccumulator(toWallet, event.block.timestamp);
-    toWallet.estimateDeposit = toWallet.estimateDeposit.plus(usnAmount);
-    toWallet.lastDepositUpdateTimestamp = event.block.timestamp;
+    if (processedTx == null) {
+      // Look up the USN amount from the same transaction
+      let usnAmountEntity = TransactionUSNAmount.load(txHash);
+      
+      // Default to zero if no USN transfer found
+      let usnAmount = BigInt.fromI32(0);
+      
+      if (usnAmountEntity != null) {
+        // Use the tracked USN amount instead of the full RP amount
+        usnAmount = usnAmountEntity.amount;
+        log.info("Found USN amount for transaction: tx={}, usn_amount={}", [
+          txHash,
+          usnAmount.toString()
+        ]);
+      } else {
+        log.warning("No USN transfer found for transaction: tx={}, using default of 0", [
+          txHash
+        ]);
+      }
+      
+      // Update the user's deposit estimate with the USN amount only
+      updateWalletBalanceAndAccumulator(toWallet, event.block.timestamp);
+      toWallet.estimateDeposit = toWallet.estimateDeposit.plus(usnAmount);
+      toWallet.lastDepositUpdateTimestamp = event.block.timestamp;
+      
+      log.info("Updated deposit estimate for user: address={}, usn_amount={}", [
+        toAddress,
+        usnAmount.toString()
+      ]);
+      
+      // Mark this transaction as processed by creating a ProcessedTransaction entity
+      processedTx = new ProcessedTransaction(processedTxKey);
+      processedTx.transactionHash = event.transaction.hash;
+      processedTx.timestamp = event.block.timestamp;
+      processedTx.save();
+    } else {
+      log.info("Skipping duplicate RFX minting in the same transaction: tx={}", [txHash]);
+    }
     
-    log.info("Updated deposit estimate for user: address={}, usn_amount={}", [
-      toAddress,
-      usnAmount.toString()
-    ]);
-    
-    // Update the balance and save
+    // Always update the balance regardless of deposit handling
     toWallet.balance = toWallet.balance.plus(transferAmount);
     toWallet.transactionCount = toWallet.transactionCount.plus(BigInt.fromI32(1));
     toWallet.save();
@@ -65,7 +97,7 @@ export function handleRfxTransfer(event: TransferEvent): void {
     log.info("RP tokens burned from user: address={}, amount={}, tx={}", [
       fromAddress,
       transferAmount.toString(),
-      event.transaction.hash.toHexString()
+      txHash
     ]);
     
     // Calculate the ratio of tokens being burned
@@ -107,7 +139,7 @@ export function handleRfxTransfer(event: TransferEvent): void {
     log.info("RP tokens redeemed by user: address={}, amount={}, tx={}", [
       fromAddress,
       transferAmount.toString(),
-      event.transaction.hash.toHexString()
+      txHash
     ]);
     
     // Calculate the ratio of tokens being redeemed

@@ -172,3 +172,10 @@ type TransactionUSNAmount @entity {
   timestamp: BigInt!                                # Timestamp of the transfer
 }
 
+# Processed Transaction tracking
+type ProcessedTransaction @entity {
+  id: ID!                                           # Transaction hash + operation type
+  transactionHash: Bytes!                           # Transaction hash
+  timestamp: BigInt!                                # Timestamp when processed
+}
+

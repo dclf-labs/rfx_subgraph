@@ -6,7 +6,8 @@ import {
 import { 
   Transfer, 
   Approval,
-  Wallet
+  Wallet,
+  TransactionUSNAmount
 } from "../generated/schema";
 import { getOrCreateWallet, createUserStateSnapshot, updateWalletBalanceAndAccumulator } from "./helpers";
 
@@ -32,15 +33,33 @@ export function handleUsnTransfer(event: TransferEvent): void {
   transfer.sharePrice = BigInt.fromI32(0); // Not applicable for USN
   transfer.save();
   
-  // Track transfers from the intermediary to the RFX Pool
-  if (fromAddress == INTERMEDIARY_ADDRESS && toAddress == RFX_POOL_ADDRESS) {
-    log.info("USN transfer from intermediary to RFX Pool: amount={}, tx={}", [
+  // Track transfers to the RFX Pool (from any source)
+  if (toAddress == RFX_POOL_ADDRESS) {
+    log.info("USN transfer to RFX Pool: from={}, amount={}, tx={}", [
+      fromAddress,
       event.params.value.toString(),
       event.transaction.hash.toHexString()
     ]);
     
-    // For now, we'll just log this information
-    // In a future update, we'll implement the TransactionUSNAmount tracking
+    // Create or update TransactionUSNAmount entity to track USN amounts by transaction
+    let txHash = event.transaction.hash.toHexString();
+    let usnAmountEntity = TransactionUSNAmount.load(txHash);
+    
+    if (usnAmountEntity == null) {
+      usnAmountEntity = new TransactionUSNAmount(txHash);
+      usnAmountEntity.amount = event.params.value;
+      usnAmountEntity.timestamp = event.block.timestamp;
+    } else {
+      // If multiple USN transfers in the same transaction, sum them up
+      usnAmountEntity.amount = usnAmountEntity.amount.plus(event.params.value);
+    }
+    
+    usnAmountEntity.save();
+    
+    log.info("Tracked USN amount for transaction: tx={}, amount={}", [
+      txHash,
+      usnAmountEntity.amount.toString()
+    ]);
   }
   
   // Handle direct deposits to the RFX Pool (not from intermediary)
