@@ -3,7 +3,6 @@
 type Wallet @entity {
   id: ID!                                           # User wallet address
   balance: BigInt!                                  # Current token balance
-  shares: BigInt!                                   # Current shares balance
   estimateDeposit: BigInt!                          # Estimated deposit value
   lastUpdateTimestamp: BigInt!                      # Last time balance was updated
   lastDepositUpdateTimestamp: BigInt!               # Last time deposit estimate was updated
@@ -141,11 +140,35 @@ type UserState @entity {
   id: Bytes!                                        # User address + timestamp
   user: Wallet!                                     # Reference to the user wallet
   balance: BigInt!                                  # Balance at snapshot time
-  shares: BigInt!                                   # Shares at snapshot time
   estimateDeposit: BigInt!                          # Estimated deposit at snapshot time
   coinTimeAccumulator: BigInt!                      # Coin-time accumulator at snapshot time
   timestamp: BigInt!                                # Timestamp of the snapshot
   blockNumber: BigInt!                              # Block number of the snapshot
   transactionHash: Bytes!                           # Transaction hash that triggered the snapshot
+}
+
+# Pending deposit tracking
+type PendingDeposit @entity {
+  id: ID!                                           # User address + timestamp
+  user: Wallet!                                     # User who initiated the deposit
+  amount: BigInt!                                   # Amount of USN deposited
+  timestamp: BigInt!                                # Timestamp of the deposit
+  processed: Boolean!                               # Whether this deposit has been processed
+}
+
+# Intermediary transfer tracking
+type IntermediaryTransfer @entity {
+  id: ID!                                           # Transaction hash + log index or just transaction hash
+  originalSender: String!                           # Original sender address or "pending"
+  amount: BigInt!                                   # Amount of USN transferred
+  timestamp: BigInt!                                # Timestamp of the transfer
+  processed: Boolean!                               # Whether this transfer has been processed
+}
+
+# Transaction USN amount tracking
+type TransactionUSNAmount @entity {
+  id: ID!                                           # Transaction hash
+  amount: BigInt!                                   # Amount of USN transferred
+  timestamp: BigInt!                                # Timestamp of the transfer
 }
 
